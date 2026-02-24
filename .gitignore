@@ -1,0 +1,36 @@
+# -------------------------
+# Python / environment
+# -------------------------
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.dist-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# -------------------------
+# OS / editor
+# -------------------------
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# -------------------------
+# Project folders (structure kept via .gitkeep)
+# -------------------------
+data/*
+models/*
+outputs/*
+
+!data/.gitkeep
+!data/annotations/.gitkeep
+!data/articles/.gitkeep
+!data/validation/.gitkeep
+!models/.gitkeep
+!outputs/.gitkeep
