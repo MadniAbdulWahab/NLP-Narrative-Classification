@@ -2,13 +2,13 @@
 
 Multi-label classification for **Narrative** and **Subnarrative** labels using a BERT encoder (`bert-base-multilingual-cased`) with:
 
-- **Hierarchical conditioning**: subnarrative head uses narrative logits as additional input  
-- **Hierarchical consistency loss**: encourages predicted subnarratives to align with the active narrative  
-- **Focal loss + pos_weight**: handles class imbalance  
-- **Oversampling** with `WeightedRandomSampler`  
+- **Hierarchical conditioning**: subnarrative head uses narrative logits as additional input
+- **Hierarchical consistency loss**: encourages predicted subnarratives to align with the active narrative
+- **Focal loss + pos_weight**: handles class imbalance
+- **Oversampling** with `WeightedRandomSampler`
 - Separate scripts for **training**, **inference**, and **evaluation**
 
-> **Data is not included** in this repo. Place files in the structure below.
+> **Data is not included** in this repo. Put your local files under `data/` as shown below.
 
 ---
 
@@ -16,26 +16,39 @@ Multi-label classification for **Narrative** and **Subnarrative** labels using a
 
 ```text
 .
-├── training.py
-├── inference.py
-├── evaluation.py
-├── annotations/
-│   └── annotation.txt
-├── articles/
-│   └── <article_id files...>
-├── validation/
-│   └── <article_id files...>
-└── final_model/              # created by training.py
-    ├── config.json
-    ├── pytorch_model.bin     # or model.safetensors (optional)
-    ├── tokenizer files...
-    ├── narrative_mapping.json
-    └── subnarrative_mapping.json
+├── README.md
+├── requirements.txt
+├── .gitignore
+├── scripts/
+│   ├── train.py
+│   ├── infer.py
+│   └── eval.py
+├── src/
+│   ├── training.py
+│   ├── inference.py
+│   └── evaluation.py
+├── data/                         # not committed (placeholder folders via .gitkeep)
+│   ├── annotations/
+│   │   └── annotation.txt
+│   ├── articles/
+│   │   └── <article_id files...>
+│   └── validation/
+│       └── <article_id files...>
+├── models/                       # created by training (ignored unless using LFS)
+│   └── final_model/
+│       ├── config.json
+│       ├── pytorch_model.bin     # or model.safetensors (optional)
+│       ├── tokenizer files...
+│       ├── narrative_mapping.json
+│       └── subnarrative_mapping.json
+└── outputs/                      # predictions + logs (not committed)
+    ├── submission.txt
+    └── output/                   # trainer checkpoints/logs
 ````
 
 ---
 
-## Annotation Format (`annotations/annotation.txt`)
+## Annotation Format (`data/annotations/annotation.txt`)
 
 Tab-separated with **3 columns**:
 
@@ -69,10 +82,7 @@ source .venv/bin/activate
 
 ```bash
 pip install -U pip
-pip install torch transformers scikit-learn pandas numpy
-
-# optional (only if you save/load safetensors):
-pip install safetensors
+pip install -r requirements.txt
 ```
 
 GPU is optional. The code will automatically use CUDA if available.
@@ -81,23 +91,25 @@ GPU is optional. The code will automatically use CUDA if available.
 
 ## How to Run
 
+> Run via the wrapper scripts in `scripts/` (recommended).
+
 ### 1) Train the model
 
 ```bash
-python training.py
+python scripts/train.py
 ```
 
 This will:
 
-* Read `annotations/annotation.txt`
-* Load article texts from `articles/`
+* Read `data/annotations/annotation.txt`
+* Load article texts from `data/articles/`
 * Train with evaluation each epoch
-* Save the final model and label mappings to `./final_model/`
+* Save the final model and label mappings to `models/final_model/`
 
 Outputs:
 
-* `final_model/` (model weights + tokenizer + mappings)
-* `output/` (trainer checkpoints/logs)
+* `models/final_model/` (model weights + tokenizer + mappings)
+* `outputs/output/` (trainer checkpoints/logs)
 
 ---
 
@@ -106,62 +118,37 @@ Outputs:
 Put dev/validation articles in:
 
 ```text
-validation/
+data/validation/
 ```
 
 Run:
 
 ```bash
-python inference.py
+python scripts/infer.py
 ```
 
 This will:
 
-* Load model + tokenizer from `./final_model/`
-* Predict labels for each file in `validation/`
+* Load model + tokenizer from `models/final_model/`
+* Predict labels for each file in `data/validation/`
 * Enforce hierarchical consistency on subnarratives
-* Write predictions to:
 
 Output:
 
-* `submission.txt` (tab-separated: `article_id  narrative_labels  subnarrative_labels`)
+* `outputs/submission.txt` (tab-separated: `article_id  narrative_labels  subnarrative_labels`)
 
 ---
 
 ### 3) Evaluate predictions
 
-You have two options:
-
-#### Option A (quick): edit paths inside `evaluation.py`
-
-At the bottom of `evaluation.py`, update:
-
-```python
-gold_file = "annotations/annotation.txt"
-pred_file = "submission.txt"
-```
-
-Then run:
-
 ```bash
-python evaluation.py
+python scripts/eval.py
 ```
 
-#### Option B (recommended): wrapper script (no file edits)
+This evaluates:
 
-Create `run_eval.py`:
-
-```python
-from evaluation import evaluate_files
-
-evaluate_files("annotations/annotation.txt", "submission.txt")
-```
-
-Run:
-
-```bash
-python run_eval.py
-```
+* gold: `data/annotations/annotation.txt`
+* predictions: `outputs/submission.txt`
 
 ---
 
@@ -192,7 +179,7 @@ The model predicts `narrative_logits` first, then concatenates them with the poo
 
 ### Consistency enforcement at inference
 
-`inference.py` enforces the convention:
+`inference.py` enforces:
 
 * If narrative is empty or only `Other` → set subnarrative to `Other`
 * Otherwise, for each predicted narrative, ensure at least one matching subnarrative exists
@@ -203,13 +190,13 @@ The model predicts `narrative_logits` first, then concatenates them with the poo
 Inference uses thresholds + fallback:
 
 * Pick labels above primary threshold
-* If none, force top label and optionally add 2nd if above fallback threshold
+* If none, force top label and optionally add a 2nd if above a fallback threshold
 
 ---
 
 ## Common Issues
 
-* **File not found**: ensure `annotations/annotation.txt` and article text files exist under `articles/` and `validation/`.
+* **File not found**: ensure `data/annotations/annotation.txt` and article text files exist under `data/articles/` and `data/validation/`.
 * **Mismatch in `article_id` names**: `article_id` is used as a file name directly.
 * **Long texts**: model uses `max_length=512` with truncation.
 
@@ -219,6 +206,6 @@ Inference uses thresholds + fallback:
 
 Implemented end-to-end by **Abdul Wahab Madni** (training + inference + evaluation).
 
----
+```
 
 
